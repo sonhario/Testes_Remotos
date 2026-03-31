@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antes / Depois — Rua Dr. Sebastião de Andrade, Eldorado, JF</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111;
+    color: #eee;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    max-width: 700px;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
+    color: #888;
+    line-height: 1.5;
+  }
+
+  .comparador {
+    position: relative;
+    width: 90vw;
+    max-width: 700px;
+    overflow: hidden;
+    cursor: col-resize;
+    border: 1px solid #333;
+  }
+
+  .comparador img {
+    display: block;
+    width: 100%;
+    height: auto;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .img-antes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    clip-path: inset(0 50% 0 0);
+  }
+
+  .img-antes img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .slider-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #fff;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .slider-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    border: 2px solid #fff;
+    z-index: 11;
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+
+  .slider-handle::before {
+    content: '\u25C0 \u25B6';
+    font-size: 10px;
+    color: #333;
+    letter-spacing: 2px;
+  }
+
+  .labels {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px;
+    pointer-events: none;
+  }
+
+  .label {
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  footer {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    max-width: 700px;
+  }
+
+  .info {
+    font-size: 0.75rem;
+    color: #666;
+    line-height: 1.6;
+  }
+
+  .info strong {
+    color: #999;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rua Dr. Sebasti&atilde;o de Andrade, Bairro Eldorado</h1>
+  <p class="subtitle">
+    Juiz de Fora, MG &mdash; Deslizamento de 23&ndash;24 de fevereiro de 2026<br>
+    584mm acumulados em fevereiro (~4&times; m&eacute;dia hist&oacute;rica) &mdash; 65 mortes
+  </p>
+</header>
+
+<div class="comparador" id="comparador">
+  <!-- Depois (pós-deslizamento) como camada base -->
+  <img src="pre_deslizamento/depois.jpg" alt="P&oacute;s-deslizamento (drone, 10/mar/2026)" draggable="false">
+
+  <!-- Antes (satélite pré-deslizamento) como overlay recortável -->
+  <div class="img-antes" id="imgAntes">
+    <img src="pre_deslizamento/antes.jpg" alt="Pr&eacute;-deslizamento (sat&eacute;lite)" draggable="false">
+  </div>
+
+  <div class="labels">
+    <span class="label">Antes</span>
+    <span class="label">Depois</span>
+  </div>
+
+  <div class="slider-line" id="sliderLine"></div>
+  <div class="slider-handle" id="sliderHandle"></div>
+</div>
+
+<footer>
+  <p class="info">
+    <strong>Antes:</strong> Esri World Imagery (sat&eacute;lite, pr&eacute;-deslizamento)<br>
+    <strong>Depois:</strong> Ortofoto por drone DJI Mini 3 Pro, 10/mar/2026 &mdash; 332 fotos, GSD 1.8cm<br>
+    Processado com OpenDroneMap 3.5.6<br><br>
+    Coordenadas: -21.7305, -43.3669 &mdash; &Aacute;rea: 0.044 km&sup2;<br>
+    Pesquisa de doutorado PPGCA/UFF
+  </p>
+</footer>
+
+<script>
+const comparador = document.getElementById('comparador');
+const imgAntes = document.getElementById('imgAntes');
+const sliderLine = document.getElementById('sliderLine');
+const sliderHandle = document.getElementById('sliderHandle');
+
+let isDragging = false;
+let sliderPos = 0.5; // 0 to 1
+
+function updateSlider(pos) {
+  sliderPos = Math.max(0, Math.min(1, pos));
+  const pct = sliderPos * 100;
+  const rightClip = (100 - pct) + '%';
+  imgAntes.style.clipPath = 'inset(0 ' + rightClip + ' 0 0)';
+  sliderLine.style.left = pct + '%';
+  sliderHandle.style.left = pct + '%';
+}
+
+function getPos(e) {
+  const rect = comparador.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  return (clientX - rect.left) / rect.width;
+}
+
+comparador.addEventListener('mousedown', (e) => { isDragging = true; updateSlider(getPos(e)); });
+comparador.addEventListener('touchstart', (e) => { isDragging = true; updateSlider(getPos(e)); e.preventDefault(); }, { passive: false });
+
+document.addEventListener('mousemove', (e) => { if (isDragging) updateSlider(getPos(e)); });
+document.addEventListener('touchmove', (e) => { if (isDragging) { updateSlider(getPos(e)); e.preventDefault(); } }, { passive: false });
+
+document.addEventListener('mouseup', () => { isDragging = false; });
+document.addEventListener('touchend', () => { isDragging = false; });
+
+// Initialize
+updateSlider(0.5);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terreno 3D — Antes / Depois — Eldorado, JF</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #eee; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; }
+
+  #canvas { width: 100vw; height: 100vh; display: block; }
+
+  #ui {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 10;
+  }
+
+  #slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0,0,0,0.7);
+    padding: 10px 20px;
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  #slider-container label {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .label-pre { color: #4fc3f7; }
+  .label-post { color: #ef5350; }
+
+  #morphSlider {
+    width: 200px;
+    accent-color: #888;
+  }
+
+  #info {
+    background: rgba(0,0,0,0.7);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    color: #888;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  #header {
+    position: fixed;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    background: rgba(0,0,0,0.7);
+    padding: 10px 20px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  #header h1 {
+    font-size: 0.9rem;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+  }
+
+  #header p {
+    font-size: 0.65rem;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  #loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.9rem;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">Carregando terreno...</div>
+
+<div id="header">
+  <h1>Rua Dr. Sebasti&atilde;o de Andrade, Eldorado</h1>
+  <p>Arraste para girar &mdash; Scroll para zoom &mdash; Slider para transição</p>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div id="slider-container">
+    <label class="label-pre">Antes</label>
+    <input type="range" id="morphSlider" min="0" max="100" value="0">
+    <label class="label-post">Depois</label>
+  </div>
+  <div id="info">
+    <span id="infoText">Copernicus 30m (~2021) → Drone ODM 5cm (10/mar/2026)</span>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('canvas');
+const slider = document.getElementById('morphSlider');
+const infoText = document.getElementById('infoText');
+const loading = document.getElementById('loading');
+
+// Scene setup
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a0a);
+scene.fog = new THREE.FogExp2(0x0a0a0a, 0.003);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.maxPolarAngle = Math.PI * 0.85;
+
+// Lights
+const ambient = new THREE.AmbientLight(0x404060, 0.6);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+dirLight.position.set(100, 200, 50);
+scene.add(dirLight);
+
+const dirLight2 = new THREE.DirectionalLight(0x8888cc, 0.4);
+dirLight2.position.set(-50, 100, -100);
+scene.add(dirLight2);
+
+// Load terrain data
+let terrainMesh = null;
+let prePositions = null;
+let postPositions = null;
+let preColors = null;
+let postColors = null;
+
+async function loadTerrain() {
+  const resp = await fetch('pre_deslizamento/terrain_data.json');
+  const data = await resp.json();
+
+  const post = data.post;
+  const pre = data.pre;
+  const meta = data.metadata;
+
+  // Use post grid as base (higher resolution)
+  const rows = post.rows;
+  const cols = post.cols;
+  const width = post.width_m;
+  const height = post.height_m;
+
+  // Create geometry
+  const geometry = new THREE.BufferGeometry();
+  const vertexCount = rows * cols;
+
+  // Post positions (high-res DTM)
+  postPositions = new Float32Array(vertexCount * 3);
+  postColors = new Float32Array(vertexCount * 3);
+
+  // Pre positions (interpolated from low-res DEM)
+  prePositions = new Float32Array(vertexCount * 3);
+  preColors = new Float32Array(vertexCount * 3);
+
+  // Center offset
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Elevation scale (exaggerate slightly for visibility)
+  const elevScale = 1.5;
+
+  // Color ramps
+  const preColor1 = new THREE.Color(0x1a5276); // deep blue-grey
+  const preColor2 = new THREE.Color(0x4fc3f7); // light blue
+  const postColor1 = new THREE.Color(0x5d1a1a); // deep red-brown
+  const postColor2 = new THREE.Color(0xef5350); // red
+
+  // Pre DEM dimensions
+  const preRows = pre.rows;
+  const preCols = pre.cols;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = (r * cols + c) * 3;
+      const x = (c / (cols - 1)) * width - cx;
+      const z = (r / (rows - 1)) * height - cy;
+
+      // Post elevation
+      const postElev = (post.elevations[r][c] - meta.min_elev_abs) * elevScale;
+      postPositions[idx] = x;
+      postPositions[idx + 1] = postElev;
+      postPositions[idx + 2] = z;
+
+      // Post color (elevation-based)
+      const postT = Math.max(0, Math.min(1, (post.elevations[r][c] - meta.min_elev_abs) / (post.max_elev - post.min_elev + 0.01)));
+      const pc = new THREE.Color().lerpColors(postColor1, postColor2, postT);
+      postColors[idx] = pc.r;
+      postColors[idx + 1] = pc.g;
+      postColors[idx + 2] = pc.b;
+
+      // Pre elevation (bilinear interpolation from coarse grid)
+      const preR = (r / (rows - 1)) * (preRows - 1);
+      const preC = (c / (cols - 1)) * (preCols - 1);
+      const r0 = Math.min(Math.floor(preR), preRows - 2);
+      const c0 = Math.min(Math.floor(preC), preCols - 2);
+      const fr = preR - r0;
+      const fc = preC - c0;
+
+      const v00 = pre.elevations[r0][c0];
+      const v10 = pre.elevations[r0 + 1][c0];
+      const v01 = pre.elevations[r0][c0 + 1];
+      const v11 = pre.elevations[r0 + 1][c0 + 1];
+      const preElev = ((v00 * (1 - fr) * (1 - fc) + v10 * fr * (1 - fc) + v01 * (1 - fr) * fc + v11 * fr * fc)) * elevScale;
+
+      prePositions[idx] = x;
+      prePositions[idx + 1] = preElev;
+      prePositions[idx + 2] = z;
+
+      // Pre color
+      const preElevAbs = preElev / elevScale;
+      const preT = Math.max(0, Math.min(1, preElevAbs / (pre.max_elev - pre.min_elev + 0.01)));
+      const prc = new THREE.Color().lerpColors(preColor1, preColor2, preT);
+      preColors[idx] = prc.r;
+      preColors[idx + 1] = prc.g;
+      preColors[idx + 2] = prc.b;
+    }
+  }
+
+  // Start with pre positions
+  const positions = new Float32Array(prePositions);
+  const colors = new Float32Array(preColors);
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  // Create index buffer for triangle mesh
+  const indices = [];
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const i = r * cols + c;
+      indices.push(i, i + cols, i + 1);
+      indices.push(i + 1, i + cols, i + cols + 1);
+    }
+  }
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshPhongMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    flatShading: false,
+    shininess: 20,
+  });
+
+  terrainMesh = new THREE.Mesh(geometry, material);
+  scene.add(terrainMesh);
+
+  // Add wireframe overlay (subtle)
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.03,
+  });
+  const wireMesh = new THREE.Mesh(geometry, wireMat);
+  scene.add(wireMesh);
+
+  // Camera position
+  camera.position.set(width * 0.6, width * 0.5, height * 0.6);
+  controls.target.set(0, 30, 0);
+  controls.update();
+
+  loading.style.display = 'none';
+
+  console.log(`Terrain loaded: ${cols}x${rows} vertices, ${indices.length / 3} triangles`);
+  console.log(`Area: ${width.toFixed(0)}x${height.toFixed(0)}m`);
+}
+
+// Morph between pre and post
+slider.addEventListener('input', () => {
+  if (!terrainMesh) return;
+
+  const t = slider.value / 100;
+  const positions = terrainMesh.geometry.attributes.position.array;
+  const colors = terrainMesh.geometry.attributes.color.array;
+
+  for (let i = 0; i < positions.length; i++) {
+    positions[i] = prePositions[i] + (postPositions[i] - prePositions[i]) * t;
+    colors[i] = preColors[i] + (postColors[i] - preColors[i]) * t;
+  }
+
+  terrainMesh.geometry.attributes.position.needsUpdate = true;
+  terrainMesh.geometry.attributes.color.needsUpdate = true;
+  terrainMesh.geometry.computeVertexNormals();
+
+  const preLabel = t < 0.5 ? 'Copernicus 30m (~2021)' : '';
+  const postLabel = t > 0.5 ? 'Drone ODM 5cm (10/mar/2026)' : '';
+  const arrow = t > 0.01 && t < 0.99 ? ' → ' : '';
+  infoText.textContent = `${t < 0.5 ? 'Copernicus 30m (~2021)' : ''}${arrow}${t > 0.01 ? 'Drone ODM 5cm (10/mar/2026)' : ''} | ${Math.round(t * 100)}%`;
+});
+
+// Animate
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+loadTerrain().then(animate);
+</script>
+
+</body>
+</html>

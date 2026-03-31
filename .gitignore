@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+._*
+
+# Tile downloads (too many small files)
+pre_deslizamento/tiles_3d/
+pre_deslizamento/tiles_3d_hires/
+pre_deslizamento/tiles_leaf/
+
+# ODM outputs (symlinks to SSD)
+dtm.tif
+dsm.tif
+ortofoto.tif
+modelo_3d
+relatorio_odm.pdf
+
+# Intermediate files
+pre_deslizamento/modelo_pos_dsm.glb
+pre_deslizamento/buildings_extruded.glb
+pre_deslizamento/google_satellite_pre.jpg
+pre_deslizamento/ortofoto_pos_web.jpg
+
+# Scripts and docs (local only)
+download_3dtiles.py
+MEMORIA_PROCESSAMENTO.md
