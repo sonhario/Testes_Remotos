@@ -67,9 +67,8 @@
   .tool-btn:hover { background: rgba(255,255,255,0.1); }
   .tool-btn.active { border-color: #4fc3f7; color: #4fc3f7; }
 
-  .tool-btn.destruido.active { border-color: #fdd835; color: #fdd835; }
-  .tool-btn.deslizamento.active { border-color: #ef5350; color: #ef5350; }
-  .tool-btn.intacto.active { border-color: #66bb6a; color: #66bb6a; }
+  .tool-btn.alterada.active { border-color: #ef5350; color: #ef5350; }
+  .tool-btn.construcao.active { border-color: #fdd835; color: #fdd835; }
 
   .color-dot {
     display: inline-block;
@@ -166,14 +165,11 @@
 <div id="toolbar">
   <div class="tool-group">
     <h3>Tipo de regi&atilde;o</h3>
-    <button class="tool-btn destruido active" onclick="setType('destruido')" id="btn-destruido">
-      <span class="color-dot" style="background:#fdd835"></span>Destru&iacute;do
+    <button class="tool-btn alterada active" onclick="setType('alterada')" id="btn-alterada">
+      <span class="color-dot" style="background:#ef5350"></span>&Aacute;rea alterada
     </button>
-    <button class="tool-btn deslizamento" onclick="setType('deslizamento')" id="btn-deslizamento">
-      <span class="color-dot" style="background:#ef5350"></span>Deslizamento
-    </button>
-    <button class="tool-btn intacto" onclick="setType('intacto')" id="btn-intacto">
-      <span class="color-dot" style="background:#66bb6a"></span>Intacto
+    <button class="tool-btn construcao" onclick="setType('construcao')" id="btn-construcao">
+      <span class="color-dot" style="background:#fdd835"></span>Constru&ccedil;&atilde;o a reconstruir
     </button>
   </div>
   <div class="tool-group">
@@ -191,7 +187,7 @@
 </div>
 
 <div id="help">
-  Clique para adicionar pontos &bull; Duplo-clique para fechar pol&iacute;gono &bull; Scroll para zoom &bull; Arraste com bot&atilde;o direito para mover
+  1 = &aacute;rea alterada &bull; 2 = constru&ccedil;&atilde;o a reconstruir &bull; Clique para pontos &bull; Duplo-clique fecha &bull; Scroll zoom &bull; Bot&atilde;o direito move
 </div>
 
 <div id="status">Carregando ortofoto...</div>
@@ -204,7 +200,7 @@ const statusEl = document.getElementById('status');
 // State
 let regions = [];
 let currentPoints = [];
-let currentType = 'destruido';
+let currentType = 'alterada';
 let orthoImg = null;
 
 // View transform (pan & zoom)
@@ -213,9 +209,8 @@ let isDragging = false;
 let dragStartX, dragStartY, dragViewX, dragViewY;
 
 const COLORS = {
-  destruido: { fill: 'rgba(253, 216, 53, 0.25)', stroke: '#fdd835', label: 'Destruído' },
-  deslizamento: { fill: 'rgba(239, 83, 80, 0.25)', stroke: '#ef5350', label: 'Deslizamento' },
-  intacto: { fill: 'rgba(102, 187, 106, 0.15)', stroke: '#66bb6a', label: 'Intacto' }
+  alterada: { fill: 'rgba(239, 83, 80, 0.2)', stroke: '#ef5350', label: 'Área alterada' },
+  construcao: { fill: 'rgba(253, 216, 53, 0.25)', stroke: '#fdd835', label: 'Construção' }
 };
 
 // Load ortofoto
@@ -272,7 +267,7 @@ function draw() {
   for (let i = 0; i < regions.length; i++) {
     const r = regions[i];
     const c = COLORS[r.type];
-    drawPolygon(r.points, c.fill, c.stroke, false, r.type === 'destruido');
+    drawPolygon(r.points, c.fill, c.stroke, false, r.type === 'construcao');
   }
 
   // Draw current polygon being created
@@ -326,7 +321,7 @@ function drawPolygon(points, fill, stroke, isActive, pulse) {
 
 // Animation loop for pulsing
 function animate() {
-  const hasPulse = regions.some(r => r.type === 'destruido');
+  const hasPulse = regions.some(r => r.type === 'construcao');
   if (hasPulse || currentPoints.length > 0) draw();
   requestAnimationFrame(animate);
 }
@@ -443,15 +438,14 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && currentPoints.length >= 3) {
     canvas.dispatchEvent(new MouseEvent('dblclick'));
   }
-  if (e.key === '1') setType('destruido');
-  if (e.key === '2') setType('deslizamento');
-  if (e.key === '3') setType('intacto');
+  if (e.key === '1') setType('alterada');
+  if (e.key === '2') setType('construcao');
 });
 
 // Tool functions
 window.setType = (type) => {
   currentType = type;
-  document.querySelectorAll('.tool-btn.destruido, .tool-btn.deslizamento, .tool-btn.intacto').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tool-btn.alterada, .tool-btn.construcao').forEach(b => b.classList.remove('active'));
   document.getElementById('btn-' + type).classList.add('active');
 };
 
