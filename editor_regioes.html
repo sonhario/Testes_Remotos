@@ -508,19 +508,35 @@ function highlightRegion(i) {
   draw();
 }
 
-window.exportJSON = () => {
+window.exportJSON = async () => {
   const data = {
     image: 'pre_deslizamento/depois.jpg',
     image_size: orthoImg ? [orthoImg.width, orthoImg.height] : null,
     regions: regions,
     exported_at: new Date().toISOString()
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const json = JSON.stringify(data, null, 2);
+
+  // Try saving to server (works on localhost via save endpoint)
+  try {
+    const resp = await fetch('/save_regions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: json
+    });
+    if (resp.ok) {
+      statusEl.textContent = 'Salvo em regioes_eldorado.json';
+      return;
+    }
+  } catch(e) {}
+
+  // Fallback: download
+  const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'regioes_eldorado.json';
   a.click();
-  statusEl.textContent = 'JSON exportado!';
+  statusEl.textContent = 'JSON exportado (download)';
 };
 
 window.importJSON = () => {
