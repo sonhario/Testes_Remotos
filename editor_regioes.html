@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor de Regiões — Eldorado, JF</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; color: #eee; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; }
+
+  #canvas-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    cursor: crosshair;
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+
+  #toolbar {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+  }
+
+  .tool-group {
+    background: rgba(0,0,0,0.8);
+    padding: 10px;
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .tool-group h3 {
+    font-size: 0.65rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .tool-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    margin: 3px 0;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    color: #ccc;
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+  }
+
+  .tool-btn:hover { background: rgba(255,255,255,0.1); }
+  .tool-btn.active { border-color: #4fc3f7; color: #4fc3f7; }
+
+  .tool-btn.destruido.active { border-color: #fdd835; color: #fdd835; }
+  .tool-btn.deslizamento.active { border-color: #ef5350; color: #ef5350; }
+  .tool-btn.intacto.active { border-color: #66bb6a; color: #66bb6a; }
+
+  .color-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  #status {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    color: #888;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 10;
+  }
+
+  #region-list {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: rgba(0,0,0,0.8);
+    padding: 10px;
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 10;
+    max-height: 50vh;
+    overflow-y: auto;
+    min-width: 180px;
+  }
+
+  #region-list h3 {
+    font-size: 0.65rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .region-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    margin: 2px 0;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+
+  .region-item:hover { background: rgba(255,255,255,0.05); }
+
+  .region-item .del {
+    color: #666;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 0.8rem;
+  }
+
+  .region-item .del:hover { color: #ef5350; }
+
+  #help {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    color: #666;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 10;
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="toolbar">
+  <div class="tool-group">
+    <h3>Tipo de regi&atilde;o</h3>
+    <button class="tool-btn destruido active" onclick="setType('destruido')" id="btn-destruido">
+      <span class="color-dot" style="background:#fdd835"></span>Destru&iacute;do
+    </button>
+    <button class="tool-btn deslizamento" onclick="setType('deslizamento')" id="btn-deslizamento">
+      <span class="color-dot" style="background:#ef5350"></span>Deslizamento
+    </button>
+    <button class="tool-btn intacto" onclick="setType('intacto')" id="btn-intacto">
+      <span class="color-dot" style="background:#66bb6a"></span>Intacto
+    </button>
+  </div>
+  <div class="tool-group">
+    <h3>A&ccedil;&otilde;es</h3>
+    <button class="tool-btn" onclick="undoLastPoint()">Desfazer ponto</button>
+    <button class="tool-btn" onclick="cancelCurrent()">Cancelar pol&iacute;gono</button>
+    <button class="tool-btn" onclick="exportJSON()">Exportar JSON</button>
+    <button class="tool-btn" onclick="importJSON()">Importar JSON</button>
+  </div>
+</div>
+
+<div id="region-list">
+  <h3>Regi&otilde;es (<span id="region-count">0</span>)</h3>
+  <div id="regions-container"></div>
+</div>
+
+<div id="help">
+  Clique para adicionar pontos &bull; Duplo-clique para fechar pol&iacute;gono &bull; Scroll para zoom &bull; Arraste com bot&atilde;o direito para mover
+</div>
+
+<div id="status">Carregando ortofoto...</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+
+// State
+let regions = [];
+let currentPoints = [];
+let currentType = 'destruido';
+let orthoImg = null;
+
+// View transform (pan & zoom)
+let viewX = 0, viewY = 0, viewScale = 1;
+let isDragging = false;
+let dragStartX, dragStartY, dragViewX, dragViewY;
+
+const COLORS = {
+  destruido: { fill: 'rgba(253, 216, 53, 0.25)', stroke: '#fdd835', label: 'Destruído' },
+  deslizamento: { fill: 'rgba(239, 83, 80, 0.25)', stroke: '#ef5350', label: 'Deslizamento' },
+  intacto: { fill: 'rgba(102, 187, 106, 0.15)', stroke: '#66bb6a', label: 'Intacto' }
+};
+
+// Load ortofoto
+const img = new Image();
+img.onload = () => {
+  orthoImg = img;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // Fit image to screen
+  const scaleX = canvas.width / img.width;
+  const scaleY = canvas.height / img.height;
+  viewScale = Math.min(scaleX, scaleY) * 0.9;
+  viewX = (canvas.width - img.width * viewScale) / 2;
+  viewY = (canvas.height - img.height * viewScale) / 2;
+
+  draw();
+  statusEl.textContent = `Ortofoto ${img.width}x${img.height} — Clique para desenhar polígonos`;
+
+  // Try to load saved regions
+  try {
+    const saved = localStorage.getItem('eldorado_regions');
+    if (saved) {
+      regions = JSON.parse(saved);
+      updateRegionList();
+      draw();
+      statusEl.textContent += ` — ${regions.length} regiões carregadas`;
+    }
+  } catch(e) {}
+};
+img.src = 'pre_deslizamento/depois.jpg';
+
+// Coordinate transforms
+function screenToImage(sx, sy) {
+  return [(sx - viewX) / viewScale, (sy - viewY) / viewScale];
+}
+
+function imageToScreen(ix, iy) {
+  return [ix * viewScale + viewX, iy * viewScale + viewY];
+}
+
+// Drawing
+function draw() {
+  if (!orthoImg) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw ortofoto
+  ctx.drawImage(orthoImg, viewX, viewY, orthoImg.width * viewScale, orthoImg.height * viewScale);
+
+  // Draw completed regions
+  for (let i = 0; i < regions.length; i++) {
+    const r = regions[i];
+    const c = COLORS[r.type];
+    drawPolygon(r.points, c.fill, c.stroke, false, r.type === 'destruido');
+  }
+
+  // Draw current polygon being created
+  if (currentPoints.length > 0) {
+    const c = COLORS[currentType];
+    drawPolygon(currentPoints, c.fill, c.stroke, true, false);
+  }
+}
+
+function drawPolygon(points, fill, stroke, isActive, pulse) {
+  if (points.length === 0) return;
+
+  ctx.beginPath();
+  const [sx0, sy0] = imageToScreen(points[0][0], points[0][1]);
+  ctx.moveTo(sx0, sy0);
+
+  for (let i = 1; i < points.length; i++) {
+    const [sx, sy] = imageToScreen(points[i][0], points[i][1]);
+    ctx.lineTo(sx, sy);
+  }
+
+  if (!isActive && points.length > 2) {
+    ctx.closePath();
+  }
+
+  // Fill
+  if (pulse) {
+    const alpha = 0.15 + 0.15 * Math.sin(Date.now() / 500);
+    ctx.fillStyle = stroke.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+  } else {
+    ctx.fillStyle = fill;
+  }
+  if (points.length > 2) ctx.fill();
+
+  // Stroke
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = isActive ? 2 : 1.5;
+  if (isActive) ctx.setLineDash([6, 4]);
+  else ctx.setLineDash([]);
+  ctx.stroke();
+
+  // Vertices
+  for (const p of points) {
+    const [sx, sy] = imageToScreen(p[0], p[1]);
+    ctx.beginPath();
+    ctx.arc(sx, sy, isActive ? 4 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = stroke;
+    ctx.fill();
+  }
+}
+
+// Animation loop for pulsing
+function animate() {
+  const hasPulse = regions.some(r => r.type === 'destruido');
+  if (hasPulse || currentPoints.length > 0) draw();
+  requestAnimationFrame(animate);
+}
+animate();
+
+// Mouse events
+canvas.addEventListener('click', (e) => {
+  if (e.button !== 0) return;
+  const [ix, iy] = screenToImage(e.offsetX, e.offsetY);
+  currentPoints.push([Math.round(ix), Math.round(iy)]);
+  draw();
+  statusEl.textContent = `${currentPoints.length} pontos — duplo-clique para fechar`;
+});
+
+canvas.addEventListener('dblclick', (e) => {
+  e.preventDefault();
+  if (currentPoints.length < 3) return;
+
+  regions.push({
+    type: currentType,
+    points: [...currentPoints],
+    label: `${COLORS[currentType].label} ${regions.filter(r => r.type === currentType).length + 1}`
+  });
+
+  currentPoints = [];
+  saveRegions();
+  updateRegionList();
+  draw();
+  statusEl.textContent = `Região adicionada — ${regions.length} total`;
+});
+
+// Pan with right-click or middle-click drag
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 2 || e.button === 1) {
+    isDragging = true;
+    dragStartX = e.offsetX;
+    dragStartY = e.offsetY;
+    dragViewX = viewX;
+    dragViewY = viewY;
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    viewX = dragViewX + (e.offsetX - dragStartX);
+    viewY = dragViewY + (e.offsetY - dragStartY);
+    draw();
+  }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (isDragging) {
+    isDragging = false;
+    canvas.style.cursor = 'crosshair';
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Zoom with scroll
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+  const mx = e.offsetX;
+  const my = e.offsetY;
+
+  // Zoom centered on mouse position
+  viewX = mx - (mx - viewX) * zoomFactor;
+  viewY = my - (my - viewY) * zoomFactor;
+  viewScale *= zoomFactor;
+
+  draw();
+}, { passive: false });
+
+// Touch support
+let touchStartDist = 0;
+let touchStartScale = 1;
+
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    // Single touch = add point
+    const rect = canvas.getBoundingClientRect();
+    const [ix, iy] = screenToImage(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+    currentPoints.push([Math.round(ix), Math.round(iy)]);
+    draw();
+    statusEl.textContent = `${currentPoints.length} pontos`;
+  } else if (e.touches.length === 2) {
+    // Pinch = zoom
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchStartDist = Math.sqrt(dx * dx + dy * dy);
+    touchStartScale = viewScale;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    viewScale = touchStartScale * (dist / touchStartDist);
+    draw();
+  }
+  e.preventDefault();
+}, { passive: false });
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) undoLastPoint();
+  if (e.key === 'Escape') cancelCurrent();
+  if (e.key === 'Enter' && currentPoints.length >= 3) {
+    canvas.dispatchEvent(new MouseEvent('dblclick'));
+  }
+  if (e.key === '1') setType('destruido');
+  if (e.key === '2') setType('deslizamento');
+  if (e.key === '3') setType('intacto');
+});
+
+// Tool functions
+window.setType = (type) => {
+  currentType = type;
+  document.querySelectorAll('.tool-btn.destruido, .tool-btn.deslizamento, .tool-btn.intacto').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + type).classList.add('active');
+};
+
+window.undoLastPoint = () => {
+  if (currentPoints.length > 0) {
+    currentPoints.pop();
+    draw();
+  }
+};
+
+window.cancelCurrent = () => {
+  currentPoints = [];
+  draw();
+  statusEl.textContent = 'Polígono cancelado';
+};
+
+function saveRegions() {
+  localStorage.setItem('eldorado_regions', JSON.stringify(regions));
+}
+
+function updateRegionList() {
+  document.getElementById('region-count').textContent = regions.length;
+  const container = document.getElementById('regions-container');
+  container.innerHTML = '';
+  regions.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'region-item';
+    div.innerHTML = `
+      <span>
+        <span class="color-dot" style="background:${COLORS[r.type].stroke}"></span>
+        ${r.label} (${r.points.length}pts)
+      </span>
+      <span class="del" onclick="deleteRegion(${i})">&times;</span>
+    `;
+    div.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('del')) highlightRegion(i);
+    });
+    container.appendChild(div);
+  });
+}
+
+window.deleteRegion = (i) => {
+  regions.splice(i, 1);
+  saveRegions();
+  updateRegionList();
+  draw();
+};
+
+function highlightRegion(i) {
+  const r = regions[i];
+  if (!r || r.points.length === 0) return;
+  // Center view on region
+  const xs = r.points.map(p => p[0]);
+  const ys = r.points.map(p => p[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const [sx, sy] = imageToScreen(cx, cy);
+  viewX += canvas.width / 2 - sx;
+  viewY += canvas.height / 2 - sy;
+  draw();
+}
+
+window.exportJSON = () => {
+  const data = {
+    image: 'pre_deslizamento/depois.jpg',
+    image_size: orthoImg ? [orthoImg.width, orthoImg.height] : null,
+    regions: regions,
+    exported_at: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'regioes_eldorado.json';
+  a.click();
+  statusEl.textContent = 'JSON exportado!';
+};
+
+window.importJSON = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        regions = data.regions || [];
+        saveRegions();
+        updateRegionList();
+        draw();
+        statusEl.textContent = `Importado: ${regions.length} regiões`;
+      } catch(err) {
+        statusEl.textContent = 'Erro ao importar JSON';
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+};
+
+// Resize
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  draw();
+});
+</script>
+</body>
+</html>
