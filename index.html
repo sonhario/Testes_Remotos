@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testes Remotos — Eldorado</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; color: #eee; font-family: 'Helvetica Neue', Arial, sans-serif;
+         display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 16px;
+          padding: 32px; max-width: 420px; width: 90%; text-align: center; }
+  h1 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; }
+  .sub { font-size: 0.75rem; color: #888; margin-bottom: 24px; }
+  a.btn { display: block; padding: 14px 20px; margin: 8px 0; border-radius: 10px;
+          text-decoration: none; font-size: 0.85rem; transition: all 0.2s; }
+  a.main { background: #2563eb; color: #fff; }
+  a.main:hover { background: #3b82f6; }
+  a.sec { background: #222; color: #aaa; border: 1px solid #333; }
+  a.sec:hover { background: #2a2a2a; color: #fff; }
+  .status { margin-top: 20px; font-size: 0.65rem; color: #555; }
+  .status a { color: #555; }
+  #tunnel-url { font-family: monospace; font-size: 0.6rem; color: #666;
+                word-break: break-all; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Cirurgia Visual — Eldorado</h1>
+  <p class="sub">Rua Dr. Sebastiao de Andrade, JF</p>
+
+  <a class="btn main" id="viewer-link" href="#">
+    Abrir Viewer 3D
+  </a>
+  <a class="btn sec" id="editor-link" href="#">
+    Editor de Regioes
+  </a>
+
+  <div class="status">
+    <div>Tunnel: <span id="tunnel-status">verificando...</span></div>
+    <div id="tunnel-url"></div>
+    <div style="margin-top:8px;">
+      Atualizado: <span id="updated"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tunnel URL is stored in tunnel.json (auto-updated by start script)
+fetch('tunnel.json?' + Date.now())
+  .then(r => r.json())
+  .then(data => {
+    const base = data.url.replace(/\/$/, '');
+    document.getElementById('viewer-link').href = base + '/viewer_3d.html';
+    document.getElementById('editor-link').href = base + '/editor_regioes.html';
+    document.getElementById('tunnel-url').textContent = base;
+    document.getElementById('updated').textContent = data.updated;
+
+    // Check if tunnel is alive
+    fetch(base + '/regioes_eldorado.json', { mode: 'no-cors' })
+      .then(() => {
+        document.getElementById('tunnel-status').textContent = 'online';
+        document.getElementById('tunnel-status').style.color = '#4ade80';
+      })
+      .catch(() => {
+        document.getElementById('tunnel-status').textContent = 'offline?';
+        document.getElementById('tunnel-status').style.color = '#f87171';
+      });
+  })
+  .catch(() => {
+    document.getElementById('tunnel-status').textContent = 'sem tunnel.json';
+    document.getElementById('tunnel-status').style.color = '#f87171';
+  });
+</script>
+</body>
+</html>
